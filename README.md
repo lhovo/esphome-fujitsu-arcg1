@@ -7,19 +7,16 @@ generated from climate settings. Handheld remote packets update the climate enti
 
 ## Install
 
-1. Unzip the package. Copy `components/fujitsu_general/` into a `components/`
-   directory alongside your existing ESPHome device YAML. With the usual Device
-   Builder layout this is `/config/esphome/components/fujitsu_general/`; use your
-   actual YAML directory if different.
+1. Use the GitHub source below to download the component directly. The
+   `components/fujitsu_general/` files must be committed and pushed to the
+   repository's `main` branch before ESPHome can download them.
 2. Keep your existing working Wi-Fi, API, OTA, logger, ESP32 and device-name
    settings. Do not replace these with settings from the earlier Tesla project.
 3. Add the following at the top level:
 
 ```yaml
 external_components:
-  - source:
-      type: local
-      path: components
+  - source: github://lhovo/esphome-fujitsu-arcg1@main
     components: [fujitsu_general]
 ```
 
@@ -49,6 +46,24 @@ to receive encrypted updates or for a serial install. Do not use it to migrate
 older password-only OTA firmware without the documented ESPHome migration step.
 Example secret names are `wifi_ssid`, `wifi_password`, `api_encryption_key`.
 No real secrets or hardware-targeted firmware binaries are included.
+
+### Local development
+
+The `lounge-aircon.yaml` example uses a local source for development. To use it
+directly from GitHub, replace its `external_components` block with the GitHub
+block above.
+
+To work with a local copy instead, copy `components/fujitsu_general/` into a
+`components/` directory alongside your device YAML. With the usual Device Builder
+layout this is `/config/esphome/components/fujitsu_general/`. Use:
+
+```yaml
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [fujitsu_general]
+```
 
 ## Supported controls
 
