@@ -462,6 +462,7 @@ void FujitsuGeneralClimate::toggle_arcg1_swing_(uint8_t bit) {
 }
 
 void FujitsuGeneralClimate::transmit_arcg1_state_() {
+  this->short_command_history_.reset();
   // An explicit HA command wins over an older, not-yet-forwarded remote command.
   this->cancel_timeout("arcg1_forward");
   if (this->mode == climate::CLIMATE_MODE_OFF) {
@@ -539,6 +540,7 @@ bool FujitsuGeneralClimate::receive_arcg1_(remote_base::RemoteReceiveData data) 
       ESP_LOGD(TAG, "AR-CG1: invalid state/checksum");
       return false;
     }
+    this->short_command_history_.reset();
     this->target_temperature = 16 + (frame[8] >> 4);
     this->mode = decode_mode(frame[9], this->mode);
     this->fan_mode = decode_fan_mode(frame[10], this->fan_mode);
@@ -557,12 +559,9 @@ bool FujitsuGeneralClimate::receive_arcg1_(remote_base::RemoteReceiveData data) 
         now - this->last_tx_toggle_time_[toggle_bit == 1 ? 0 : 1] < 500)
       return true;
     // One held button may repeat its frame. Suppress identical short frames within 200 ms.
-    if (command == this->last_rx_short_ && now - this->last_rx_short_time_ < 200) {
-      this->last_rx_short_time_ = now;
+    if (this->short_command_history_.is_repeat(command, now)) {
       return true;
     }
-    this->last_rx_short_ = command;
-    this->last_rx_short_time_ = now;
     if (command == arcg1::OFF) {
       this->mode = climate::CLIMATE_MODE_OFF;
       this->power_ = false;

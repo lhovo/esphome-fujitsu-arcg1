@@ -49,7 +49,9 @@ Vane-step commands do not change assumed swing, because their effect on ongoing
 swing has not been established on this air conditioner.
 
 An identical received short command within 200 ms is treated as a held-button
-repeat. Matching packets in an eight-entry transmission history within 1000 ms are
+repeat. A valid received state frame or a local climate command resets this
+repeat tracking so an intervening state change does not hide a new OFF command.
+Matching packets in an eight-entry transmission history within 1000 ms are
 treated as IR echo, with the existing 500 ms per-axis toggle guard also retained.
 A genuine matching handheld press in that interval may be ignored.
 Short frames have no checksum; validation can only check header, command and length.

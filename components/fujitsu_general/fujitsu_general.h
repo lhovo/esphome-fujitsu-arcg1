@@ -109,8 +109,7 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
   arcg1::TransmissionHistory transmission_history_;
   FujitsuModel model_{DEFAULT};
   uint8_t arcg1_swing_{0};  // Assumed only: no absolute swing state in captured frames.
-  uint8_t last_rx_short_{0};
-  uint32_t last_rx_short_time_{0};
+  arcg1::ShortCommandHistory short_command_history_;
   uint32_t last_tx_toggle_time_[2]{};
   uint8_t tx_toggle_seen_{0};
   /// Transmit via IR the state of this climate controller.

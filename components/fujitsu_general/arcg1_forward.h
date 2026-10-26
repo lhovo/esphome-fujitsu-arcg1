@@ -10,6 +10,23 @@ inline bool forwardable(const uint8_t *frame, size_t length) {
   return valid_state(frame, length) || (valid_short(frame, length) && frame[5] == OFF);
 }
 
+// Suppress held-button repeats only until another state command intervenes.
+class ShortCommandHistory {
+ public:
+  bool is_repeat(uint8_t command, uint32_t now) {
+    const bool repeated = command == this->command_ && static_cast<uint32_t>(now - this->time_) < 200;
+    this->command_ = command;
+    this->time_ = now;
+    return repeated;
+  }
+
+  void reset() { this->command_ = 0; }  // Zero is not a valid AR-CG1 short command.
+
+ protected:
+  uint8_t command_{0};
+  uint32_t time_{0};
+};
+
 // Small history rather than only the last packet: a climate operation may send
 // a state frame followed by two swing frames before the receiver processes echo.
 class TransmissionHistory {

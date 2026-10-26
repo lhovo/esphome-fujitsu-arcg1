@@ -20,6 +20,26 @@ struct Capture {
 };
 
 int main() {
+  ShortCommandHistory short_history;
+  assert(!short_history.is_repeat(OFF, 0));
+  assert(short_history.is_repeat(OFF, 100));
+  assert(short_history.is_repeat(OFF, 250));  // Held repeats extend the window.
+  assert(!short_history.is_repeat(OFF, 450));  // Exactly 200 ms is a new press.
+  assert(!short_history.is_repeat(TOGGLE_VERTICAL, 460));
+  assert(!short_history.is_repeat(OFF, 470));
+  // OFF -> intervening local/received state -> OFF must accept the second OFF.
+  short_history.reset();
+  assert(!short_history.is_repeat(OFF, 480));
+  assert(short_history.is_repeat(OFF, 490));
+  short_history.reset();
+  short_history.reset();
+  assert(!short_history.is_repeat(OFF, 500));
+  short_history.reset();
+  assert(!short_history.is_repeat(OFF, 0xFFFFFFF0U));
+  assert(short_history.is_repeat(OFF, 20));
+  assert(!short_history.is_repeat(OFF, 220));
+  std::puts("PASS short-command repeats, intervening-state reset, expiry and clock wrap");
+
   // Independent, unchanged AEHA payloads supplied by the hardware owner.
   const Capture captures[] = {
     {"24 C auto turn on", {0,8,8,0x3F,0x10,0x0C,0x81,0x80,0,0,0,0,0x72},24,1,0,true},

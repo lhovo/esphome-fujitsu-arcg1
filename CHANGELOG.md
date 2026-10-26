@@ -1,3 +1,12 @@
+# 0.3.0
+
+* Reset received short-command repeat tracking after a local climate command or
+  valid received state frame, so an intervening state change does not suppress a
+  subsequent OFF command within 200 ms.
+* Add regression tests for repeat-tracking resets, held-button repeats, expiry,
+  and clock wraparound; verified in Docker with AddressSanitizer and
+  UndefinedBehaviorSanitizer.
+
 # 0.2.0
 
 * Add opt-in `forward_remote_commands: true` for AR-CG1 with a configured receiver.
