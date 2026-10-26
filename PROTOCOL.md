@@ -49,12 +49,21 @@ Vane-step commands do not change assumed swing, because their effect on ongoing
 swing has not been established on this air conditioner.
 
 An identical received short command within 200 ms is treated as a held-button
-repeat. Matching locally transmitted packets/toggles within 500 ms are treated as
-IR echo. A genuine matching handheld press in that interval may be ignored.
+repeat. Matching packets in an eight-entry transmission history within 1000 ms are
+treated as IR echo, with the existing 500 ms per-axis toggle guard also retained.
+A genuine matching handheld press in that interval may be ignored.
 Short frames have no checksum; validation can only check header, command and length.
 
 This is one-way IR: commands can be missed and assumed state can diverge.
 The correction method changes only the tracked assumption and sends no IR.
+
+## Optional forwarding
+
+Only checksum-validated 15-byte states and structurally valid 6-byte OFF frames
+qualify. Relative vane commands never qualify. Copies are sent 40 ms after reception;
+newer accepted state/off packets replace pending ones, and explicit local climate
+commands cancel pending forwarding. Received state is published before forwarding.
+Remember all transmissions before sending to suppress their received echoes.
 
 ## Sources
 

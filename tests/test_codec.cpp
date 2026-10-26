@@ -1,4 +1,5 @@
 #include "../components/fujitsu_general/arcg1_codec.h"
+#include "../components/fujitsu_general/arcg1_forward.h"
 #include <cassert>
 #include <cstdio>
 #include <vector>
@@ -35,12 +36,14 @@ int main() {
     StateFrame expected{0x14,0x63};
     for (size_t i = 0; i < capture.aeha.size(); ++i) expected[i+2] = reverse(capture.aeha[i]);
     assert(valid_state(expected.data(), expected.size()));
+    assert(forwardable(expected.data(), expected.size()));
     assert(encode_state(capture.temperature,capture.mode,capture.fan,capture.turn_on) == expected);
     // Every single-bit corruption must fail validation, including header/body/checksum.
     for (size_t i = 0; i < expected.size(); ++i) {
       for (uint8_t bit = 1; bit; bit <<= 1) {
         auto corrupted = expected; corrupted[i] ^= bit;
         assert(!valid_state(corrupted.data(), corrupted.size()));
+        assert(!forwardable(corrupted.data(), corrupted.size()));
       }
     }
     for (size_t length = 0; length < STATE_LENGTH; ++length)
@@ -53,6 +56,7 @@ int main() {
     const ShortFrame expected{0x14,0x63,0,0x10,0x10,reverse(aeha_commands[i])};
     assert(expected == encode_short(commands[i]));
     assert(valid_short(expected.data(), expected.size()));
+    assert(forwardable(expected.data(), expected.size()) == (commands[i] == OFF));
     assert(!valid_short(expected.data(), 5));
     assert(!valid_short(expected.data(), 7));
     auto corrupted = expected; corrupted[0] ^= 1;
@@ -63,4 +67,30 @@ int main() {
   assert(encode_state(0,1,0,false)[8] == 0);
   assert(encode_state(255,1,0,false)[8] == 0xE0);
   std::puts("PASS all 5 captured short commands, corruption/truncation rejection and temperature clamping");
+
+  TransmissionHistory history;
+  const auto state_a = encode_state(24,1,0,true);
+  const auto state_b = encode_state(25,1,0,false);
+  const auto vertical = encode_short(TOGGLE_VERTICAL);
+  const auto horizontal = encode_short(TOGGLE_HORIZONTAL);
+  assert(!history.matches(state_a.data(), state_a.size(), 0));
+  history.remember(state_a.data(), state_a.size(), 100);
+  history.remember(vertical.data(), vertical.size(), 250);
+  history.remember(horizontal.data(), horizontal.size(), 300);
+  // A later swing transmission must not cause the earlier state echo to repeat.
+  assert(history.matches(state_a.data(), state_a.size(), 400));
+  assert(history.matches(vertical.data(), vertical.size(), 400));
+  assert(history.matches(horizontal.data(), horizontal.size(), 400));
+  assert(!history.matches(state_b.data(), state_b.size(), 400));
+  assert(history.matches(state_a.data(), state_a.size(), 1099));
+  assert(!history.matches(state_a.data(), state_a.size(), 1100));
+  const auto off = encode_short(OFF);
+  history.remember(off.data(), off.size(), 1200);
+  assert(history.matches(off.data(), off.size(), 1300));
+  assert(!history.matches(off.data(), off.size(), 2200));
+  // millis() wraps: unsigned elapsed time must still suppress recent echo.
+  history.remember(state_b.data(), state_b.size(), 0xFFFFFFF0U);
+  assert(history.matches(state_b.data(), state_b.size(), 20));
+  assert(!history.matches(state_b.data(), state_b.size(), 1100));
+  std::puts("PASS forwarding allow-list, recent multi-packet echo history, expiry and clock wrap");
 }

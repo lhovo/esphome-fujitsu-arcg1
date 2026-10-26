@@ -92,6 +92,8 @@ void FujitsuGeneralClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Protocol model: %s", this->model_ == AR_CG1 ? "AR-CG1 (15/6 bytes)" : "DEFAULT (16/7 bytes)");
   if (this->model_ == AR_CG1)
     ESP_LOGCONFIG(TAG, "  Swing: toggle-based, initially assumed OFF; vane positions are not reported");
+  ESP_LOGCONFIG(TAG, "  Forward received AR-CG1 state/off commands: %s",
+                this->forward_remote_commands_ ? "YES" : "NO");
 }
 
 void FujitsuGeneralClimate::transmit_state() {
@@ -416,9 +418,7 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void FujitsuGeneralClimate::send_arcg1_(const uint8_t *message, uint8_t length) {
-  std::memcpy(this->last_tx_, message, length);
-  this->last_tx_length_ = length;
-  this->last_tx_time_ = millis();
+  this->transmission_history_.remember(message, length, millis());
   if (length == arcg1::SHORT_LENGTH) {
     if (message[5] == arcg1::TOGGLE_VERTICAL) {
       this->last_tx_toggle_time_[0] = millis();
@@ -462,6 +462,8 @@ void FujitsuGeneralClimate::toggle_arcg1_swing_(uint8_t bit) {
 }
 
 void FujitsuGeneralClimate::transmit_arcg1_state_() {
+  // An explicit HA command wins over an older, not-yet-forwarded remote command.
+  this->cancel_timeout("arcg1_forward");
   if (this->mode == climate::CLIMATE_MODE_OFF) {
     this->send_arcg1_short_(arcg1::OFF);
     this->power_ = false;
@@ -529,8 +531,7 @@ bool FujitsuGeneralClimate::receive_arcg1_(remote_base::RemoteReceiveData data) 
     return false;
 
   const uint32_t now = millis();
-  if (length == this->last_tx_length_ && now - this->last_tx_time_ < 500 &&
-      std::memcmp(frame, this->last_tx_, length) == 0)
+  if (this->transmission_history_.matches(frame, length, now))
     return true;  // Ignore our own IR echo.
 
   if (length == arcg1::STATE_LENGTH) {
@@ -573,7 +574,23 @@ bool FujitsuGeneralClimate::receive_arcg1_(remote_base::RemoteReceiveData data) 
     }
   }
   this->publish_state();
+  this->schedule_arcg1_forward_(frame, length);
   return true;
+}
+
+void FujitsuGeneralClimate::schedule_arcg1_forward_(const uint8_t *frame, uint8_t length) {
+  if (!this->forward_remote_commands_ || !arcg1::forwardable(frame, length))
+    return;
+  arcg1::StateFrame copy{};
+  std::memcpy(copy.data(), frame, length);
+  // Leave the receiver callback before transmitting. Capture a copy because the
+  // decoded buffer belongs to receive_arcg1_'s stack. Newer state/off replaces
+  // this pending command, so an older ON cannot be sent after a newer OFF.
+  this->set_timeout("arcg1_forward", 40, [this, copy, length]() {
+    ESP_LOGD(TAG, "AR-CG1 forwarding received %s (%u bytes)",
+             length == arcg1::SHORT_LENGTH ? "OFF" : "state", length);
+    this->send_arcg1_(copy.data(), length);
+  });
 }
 
 }  // namespace esphome::fujitsu_general

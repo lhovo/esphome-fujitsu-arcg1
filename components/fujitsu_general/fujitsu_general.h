@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "arcg1_forward.h"
 
 namespace esphome::fujitsu_general {
 
@@ -86,6 +87,7 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
                           climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH};
   }
   void step_vertical();
+  void set_forward_remote_commands(bool enabled) { this->forward_remote_commands_ = enabled; }
   void step_horizontal();
   // Reconcile assumed swing with physically observed vanes; sends no IR.
   void set_assumed_swing(climate::ClimateSwingMode mode);
@@ -102,11 +104,11 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
   void send_arcg1_short_(uint8_t command);
   void send_arcg1_(const uint8_t *message, uint8_t length);
   void toggle_arcg1_swing_(uint8_t bit);
+  void schedule_arcg1_forward_(const uint8_t *frame, uint8_t length);
+  bool forward_remote_commands_{false};
+  arcg1::TransmissionHistory transmission_history_;
   FujitsuModel model_{DEFAULT};
   uint8_t arcg1_swing_{0};  // Assumed only: no absolute swing state in captured frames.
-  uint8_t last_tx_[15]{};
-  uint8_t last_tx_length_{0};
-  uint32_t last_tx_time_{0};
   uint8_t last_rx_short_{0};
   uint32_t last_rx_short_time_{0};
   uint32_t last_tx_toggle_time_[2]{};

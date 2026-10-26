@@ -1,4 +1,4 @@
-# Validation — version 0.1.0
+# Validation — version 0.2.0
 
 Performed with ESPHome **2026.10.0**, ESP-IDF **5.5.6**, target **ESP32 / esp32dev**.
 
@@ -18,6 +18,12 @@ Performed with ESPHome **2026.10.0**, ESP-IDF **5.5.6**, target **ESP32 / esp32d
   rejected. Temperature clamping checked at protocol endpoints.
 * The default upstream implementation remains in the same compilation unit;
   AR-CG1 uses a separate opt-in path. Default-model schema validation also passes.
+* Forwarding enabled with AR_CG1 and receiver: schema validation passes. Enabling
+  forwarding for DEFAULT or without receiver_id is rejected.
+* Forwarding allow-list: every captured valid state and OFF accepted; every captured
+  vane command and each single-bit-corrupted state rejected.
+* Eight-entry transmission history: suppression of earlier state and two subsequent
+  swing packets, expiry, distinct packets, OFF and 32-bit clock wraparound pass.
 
 The IDF component manager's process lookup required a build-environment-only
 workaround to use its documented parent-PID fallback. This changed no packaged
@@ -28,3 +34,5 @@ pulse timing under real conditions, echo/repeat handling, true swing position,
 or vane-step direction. Follow the hardware checks in README.md. Packet tests are
 not a substitute for these checks, and the runtime receive/toggle integration has
 not been executed on hardware.
+Forwarding scheduling/cancellation and optical echo suppression require hardware
+verification as well; automated history tests do not simulate the ESPHome scheduler.

@@ -58,6 +58,7 @@ climate:
     id: lounge_ac
     name: Air Conditioner
     model: AR_CG1
+    forward_remote_commands: true
     transmitter_id: ir_tx
     receiver_id: ir_rx
 

@@ -1,5 +1,7 @@
 # Fujitsu AR-CG1 climate extension for ESPHome
 
+Version **0.2.0** adds optional handheld-command forwarding (see below).
+
 External override of ESPHome's `fujitsu_general` component, based on **ESPHome
 2026.10.0**. Adds an opt-in `model: AR_CG1` using the supplied AR-CG1 captures.
 No captured-command replay: temperature, mode, fan, turn-on and checksums are
@@ -7,9 +9,9 @@ generated from climate settings. Handheld remote packets update the climate enti
 
 ## Install
 
-1. Use the GitHub source below to download the component directly. The
-   `components/fujitsu_general/` files must be committed and pushed to the
-   repository's `main` branch before ESPHome can download them.
+1. The component code lives in
+   [lhovo/esphome-fujitsu-arcg1](https://github.com/lhovo/esphome-fujitsu-arcg1).
+   ESPHome can fetch it directly from the repository's `main` branch.
 2. Keep your existing working Wi-Fi, API, OTA, logger, ESP32 and device-name
    settings. Do not replace these with settings from the earlier Tesla project.
 3. Add the following at the top level:
@@ -47,24 +49,6 @@ older password-only OTA firmware without the documented ESPHome migration step.
 Example secret names are `wifi_ssid`, `wifi_password`, `api_encryption_key`.
 No real secrets or hardware-targeted firmware binaries are included.
 
-### Local development
-
-The `lounge-aircon.yaml` example uses a local source for development. To use it
-directly from GitHub, replace its `external_components` block with the GitHub
-block above.
-
-To work with a local copy instead, copy `components/fujitsu_general/` into a
-`components/` directory alongside your device YAML. With the usual Device Builder
-layout this is `/config/esphome/components/fujitsu_general/`. Use:
-
-```yaml
-external_components:
-  - source:
-      type: local
-      path: components
-    components: [fujitsu_general]
-```
-
 ## Supported controls
 
 * Off, Cool, Heat, Dry, Fan only, Auto heat/cool.
@@ -73,12 +57,53 @@ external_components:
 * Off / Vertical / Horizontal / Both swing, implemented by per-axis toggles.
 * Optional vane-step buttons through `step_vertical()` / `step_horizontal()`.
 * Receive state frames, off, swing toggle and vane-step commands.
+* Optionally forward received state/turn-on and off packets; never forward swing
+  toggles or vane-step commands.
 * Original 16-byte/7-byte behaviour remains the default when `model` is omitted
   or set to `DEFAULT`.
 
 Clock, timers and sleep are out of scope. No room temperature sensor is included;
 the remote's setpoint is not the measured room temperature. You can use the
 standard `sensor:` climate option with a separate temperature sensor.
+
+## Forward handheld commands (new in 0.2.0)
+
+Add this to the existing `fujitsu_general` climate entry:
+
+```yaml
+    forward_remote_commands: true
+```
+
+The default is **false** for existing installations. It requires `model: AR_CG1`
+and a `receiver_id`. Normal remote-to-Home-Assistant state tracking works with
+forwarding disabled as before.
+
+For the first rebuild after an update, you can set `refresh: 0s` on the `external_components`
+source to fetch the updated `main` rather than a cached copy. Then remove that
+override or pin the updated commit after hardware testing.
+
+The receiver validates each packet and updates the climate state first. Accepted
+15-byte state/turn-on packets and the 6-byte OFF command are scheduled for forwarding
+40 ms later, outside the receiver callback. The packet is copied, so temperature,
+fan, mode and the original explicit turn-on bit are preserved exactly; it is not
+rebuilt through a climate call and never adds a vane command.
+
+If several remote commands arrive before the scheduled transmission, the newest
+state/off wins. A Home Assistant climate command cancels an older pending forward.
+The eight most recent locally sent packets are remembered for one second, including
+normal Home Assistant transmissions, to prevent receiving and repeating local echo.
+An identical genuine remote command in that window may also be ignored. Short
+held-button repeats retain the existing 200 ms suppression.
+
+Swing toggles and vane steps still decode/update the existing assumed state or log
+the action, but are never forwarded. Clock/sleep support has not been added. A
+state packet's existing ancillary bits (for example timers) are preserved if the
+original remote includes them; the repeater does not interpret or remove them.
+
+Enable DEBUG logs and look for `AR-CG1 forwarding received state (15 bytes)` or
+`AR-CG1 forwarding received OFF (6 bytes)`. Check that your own transmissions do not
+cause a stream of repeated forwards. This still needs a working IR LED/driver;
+forwarding code cannot fix the current hardware-output fault.
 
 ## Swing correction
 
@@ -117,6 +142,9 @@ the air conditioner accepts transmitted commands.
 frames against nine independent captured state payloads and five short commands,
 checks all single-bit corruptions of the state fixtures, rejects truncated frames,
 and verifies temperature clamping. See `VALIDATION.md` for checks run for this release.
+Forwarding tests also verify that all four vane commands are excluded, corrupted
+state packets cannot be forwarded, and echo history covers multiple transmitted
+packets, expiry and `millis()` wraparound.
 
 ## Roll back / upgrade
 
